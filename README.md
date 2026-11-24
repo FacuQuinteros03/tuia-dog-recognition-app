@@ -66,6 +66,7 @@ tuia-dog-recognition-app/
 │   └── train_classifier.py      # Entrena/evalúa el clasificador (alternativa local a 2-train.ipynb)
 ├── data/
 │   ├── dataset/                 # 70 Dog Breeds Image Dataset, no se versiona
+│   │   └── clean/               # Dataset filtrado y re-particionado (1-pre-processing.ipynb); es el DATASET_PATH
 │   └── embeddings.json          # Base vectorial JSON (si USE_PGVECTOR=false)
 ├── models/                      # Checkpoints entrenados (.pth / .onnx), no se versionan
 ├── output/                      # Imágenes subidas y resultados, no se versiona
@@ -95,6 +96,16 @@ python scripts/download_dataset.py
 ```
 
 Requiere [credenciales de Kaggle](https://www.kaggle.com/docs/api) configuradas. Si no las tienen, descarguen el dataset manualmente desde Kaggle y descompriman `train/`, `valid/` y `test/` dentro de `data/dataset`.
+
+Después hay que ejecutar `1-pre-processing.ipynb`: filtra el dataset (duplicados, imágenes borrosas o sin perro), lo re-particiona 70/15/15 y genera `data/dataset/clean/`, que es el `DATASET_PATH` que usa la app.
+
+### Conjunto independiente de evaluación
+
+133 imágenes de Wikimedia Commons, revisadas a mano: 100 fotos de un perro de 24 razas del dataset (Etapas 1 y 2), 13 escenas con varios perros y 20 sin perros (Etapa 3). Las imágenes no se versionan. La fuente, el autor y la licencia de cada una están en [`data/independent_sources.csv`](data/independent_sources.csv).
+
+- **Descarga (solo lectura):** [conjunto_independiente.zip en Google Drive](https://drive.google.com/drive/folders/1SCEwhbLpWVE176pZPthhyTmz7qaeHBnc)
+- Descomprimir `conjunto_independiente.zip` dentro de `data/dataset/`. Crea `independent/<raza>/` e `independent_scenes/{multi_dog,no_dog}/`. El zip trae también `ATRIBUCIONES.md` con el autor y la licencia de cada imagen.
+- Alternativa sin el link: `python scripts/build_independent_set.py download` las baja de Commons a partir del CSV.
 
 ## Configurá tus modelos
 
@@ -235,6 +246,10 @@ python scripts/build_index.py --split train
 # ... o lo mismo desde el contenedor del backend (con docker compose up -d corriendo)
 docker compose exec backend python /scripts/build_index.py --split train
 
+# Bajar el conjunto independiente desde Wikimedia Commons (o armar el zip para compartirlo)
+python scripts/build_independent_set.py download
+python scripts/build_independent_set.py package
+
 # Entrenar y evaluar el clasificador localmente (alternativa a 2-train.ipynb)
 python scripts/train_classifier.py --model resnet18_finetuned
 ```
@@ -351,7 +366,7 @@ Completar en la entrega final.
 - Para usar `pgvector`, levanten `postgres` y definan `USE_PGVECTOR=true` en `.env`.
 - `EMBEDDING_DIM` debe coincidir con la dimensión del embedding del modelo elegido. Si cambian `EMBEDDING_DIM`, la tabla `embeddings` se recrea y se borran los registros previos.
 - La base vectorial guarda los embeddings de un modelo a la vez: al cambiar de modelo de embeddings hay que reindexar (`scripts/build_index.py`).
-- Las rutas de la galería se guardan relativas a `DATA_PATH` (por ejemplo, `dataset/train/<raza>/<imagen>.jpg`): una base indexada desde el entorno local también sirve para el backend en Docker, porque comparten PostgreSQL y la carpeta `data/`.
+- Las rutas de la galería se guardan relativas a `DATA_PATH` (por ejemplo, `dataset/clean/train/<raza>/<imagen>.jpg`): una base indexada desde el entorno local también sirve para el backend en Docker, porque comparten PostgreSQL y la carpeta `data/`.
 - Los modelos (`*.pth`, `*.pt`, `*.onnx`) y los datos no se versionan (ver `.gitignore`). Coloquen los checkpoints en `models/` y súbanlos a un link **público de solo lectura** para que los docentes puedan descargarlos.
 - Los pesos preentrenados (torchvision/timm y YOLO) se descargan en el primer uso, por lo que se necesita conexión a internet.
 

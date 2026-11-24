@@ -58,7 +58,7 @@ def main() -> None:
 
     root = settings.dataset_path / args.split
     if not root.is_dir():
-        sys.exit(f"No existe {root}. Descarga el dataset con scripts/download_dataset.py")
+        sys.exit(f"No existe {root}. Descarga el dataset con scripts/download_dataset.py y ejecuta 1-pre-processing.ipynb, que genera data/dataset/clean")
 
     total = 0
     for breed_dir in sorted(p for p in root.iterdir() if p.is_dir()):
