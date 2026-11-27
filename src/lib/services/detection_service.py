@@ -62,29 +62,69 @@ class DetectionService:
     # Etapa 3: funciones a implementar
     # ------------------------------------------------------------------
 
+    def _get_yolo(self):
+        """Detector YOLO preentrenado en COCO, cargado una sola vez (thread-safe).
+
+        ultralytics descarga los pesos en la ruta de YOLO_MODEL (dentro de models/) en el primer uso.
+        """
+        import threading
+
+        if not hasattr(self, "_yolo_lock"):
+            self._yolo_lock = threading.Lock()
+        if getattr(self, "_yolo", None) is None:
+            with self._yolo_lock:
+                if getattr(self, "_yolo", None) is None:
+                    from ultralytics import YOLO
+
+                    self._yolo = YOLO(self.yolo_model_name)
+                    logger.info("Detector YOLO cargado: %s", self.yolo_model_name)
+        return self._yolo
+
     def detect_dogs(self, image: np.ndarray) -> list[tuple[tuple[int, int, int, int], float]]:
         """
-        Detecta todos los perros presentes en la imagen usando un modelo YOLO
-        pre-entrenado (ej: YOLOv8n via ultralytics). No es necesario entrenar
-        el detector.
+        Detecta todos los perros de la imagen con YOLO preentrenado en COCO (YOLO_MODEL).
 
-        Sugerencias:
-          - self.yolo_model_name, self.conf_threshold y self.dog_class_id
-            (clase 'dog' = 16 en COCO) vienen de la configuracion (.env).
-          - Debe funcionar con un perro, multiples perros y escenas complejas.
+        Se filtra por la clase perro (YOLO_DOG_CLASS_ID = 16) y por confianza
+        (YOLO_CONF_THRESHOLD), ambos del .env. La imagen llega en BGR, que es lo que espera
+        ultralytics para arrays de numpy. Las cajas se devuelven en pixeles enteros de la imagen
+        original, ordenadas por confianza descendente; sin perros, lista vacia.
 
         Retorna una lista de ((x1, y1, x2, y2), confidence) en pixeles.
         """
-        raise NotImplementedError("Etapa 3: implementar detect_dogs")
+        if image is None or image.size == 0:
+            return []
+        result = self._get_yolo().predict(
+            image,
+            conf=float(self.conf_threshold),
+            classes=[int(self.dog_class_id)],
+            device=getattr(self, "device", None),
+            verbose=False,
+        )[0]
+        detections: list[tuple[tuple[int, int, int, int], float]] = []
+        for box, conf, cls in zip(
+            result.boxes.xyxy.cpu().numpy(), result.boxes.conf.cpu().numpy(), result.boxes.cls.cpu().numpy()
+        ):
+            if int(cls) != int(self.dog_class_id) or float(conf) < float(self.conf_threshold):
+                continue
+            x1, y1, x2, y2 = (int(round(float(v))) for v in box)
+            detections.append(((x1, y1, x2, y2), float(conf)))
+        detections.sort(key=lambda d: d[1], reverse=True)
+        return detections
 
     def classify_detected_dog(self, crop: np.ndarray) -> tuple[str, float]:
         """
-        Clasifica la raza del recorte de un perro detectado usando el modelo
-        entrenado en la Etapa 2 (self.classifier.load_model()).
+        Clasifica la raza del recorte de un perro con el modelo activo de la Etapa 2.
+
+        Usa ClassifierService.predict_breed: el mismo preprocesamiento del entrenamiento
+        (BGR -> RGB, letterbox a IMAGE_SIZE sin deformar recortes alargados, normalizacion de
+        ImageNet), model.eval() + no_grad, y la lista de razas guardada dentro del checkpoint.
+        El score es la probabilidad softmax de la raza predicha. Un recorte vacio da "unknown".
 
         El recorte llega en BGR (OpenCV). Retorna (raza, score).
         """
-        raise NotImplementedError("Etapa 3: implementar classify_detected_dog")
+        if crop is None or crop.size == 0 or min(crop.shape[:2]) < 2:
+            return "unknown", 0.0
+        return self.classifier.predict_breed(crop)
 
     # ------------------------------------------------------------------
     # Orquestacion provista
