@@ -31,8 +31,8 @@ La API responde `HTTP 202` con un `job_id` y luego permite consultar el resultad
 
 ```text
 tuia-dog-recognition-app/
-├── 1-pre-processing.ipynb       # Parte 1: dataset y preprocesamiento
-├── 2-train.ipynb                # Etapa 2: entrenamiento, evaluación (incl. NDCG@10 de la Etapa 1) y comparación
+├── 1-pre-processing.ipynb       # Parte 1: EDA, filtrado, conjunto independiente, augmentation y splits
+├── 2-train.ipynb                # Etapas 1-3: NDCG@10, modelos A y B, comparación y validación de YOLO
 ├── ENUNCIADO.md                 # Enunciado completo del TP
 ├── Trabajo Práctico N°2.pdf     # Enunciado en PDF
 ├── src/
@@ -42,31 +42,43 @@ tuia-dog-recognition-app/
 │   │   ├── app.py
 │   │   └── gradio_ui.py
 │   └── lib/
+│       ├── preprocessing.py     # Preprocesamiento y augmentation compartidos (entrenamiento e inferencia)
 │       ├── api.py               # Endpoints /upload, /search, /classify, /detect, /status, /models, /files
 │       ├── bootstrap.py         # Construcción de los servicios (compartida por la API y los scripts)
 │       ├── config.py            # Configuración vía .env
 │       ├── files.py
 │       ├── schemas.py
+│       ├── models/              # Agregado por el grupo (Etapa 2)
+│       │   ├── resnet_classifier.py # Modelo A: ResNet18 de ImageNet con cabeza nueva
+│       │   ├── cnn_custom.py        # Modelo B: CNN propia (embedding de 512)
+│       │   ├── data.py              # Dataset de PyTorch sobre data/dataset/clean/<split>/<raza>/
+│       │   └── train_config.py      # Hiperparámetros por modelo
 │       ├── evaluation/
 │       │   └── metrics.py       # NDCG@k, precision/recall/F1, specificity
 │       ├── visualization/
 │       │   └── draw.py          # Dibujo de bounding boxes
 │       ├── services/
-│       │   ├── similarity_service.py   # ⚠️ Etapa 1: funciones a implementar
-│       │   ├── classifier_service.py   # ⚠️ Etapa 2: funciones a implementar
-│       │   ├── detection_service.py    # ⚠️ Etapa 3: funciones a implementar
+│       │   ├── similarity_service.py   # Etapa 1: embeddings ResNet18, búsqueda y raza por voto
+│       │   ├── classifier_service.py   # Etapa 2: entrenamiento, evaluación y embeddings de los modelos
+│       │   ├── detection_service.py    # Etapa 3: detección con YOLOv8n y clasificación de cada recorte
 │       │   └── task_manager.py
 │       └── storage/
 │           ├── base.py
 │           ├── embedding_store.py      # Base vectorial en JSON
 │           └── pgvector_store.py       # Base vectorial en PostgreSQL + pgvector
 ├── scripts/
+│   ├── build_independent_set.py # Arma el conjunto independiente desde Wikimedia Commons
 │   ├── download_dataset.py      # Descarga el dataset de Kaggle
 │   ├── build_index.py           # Indexa el dataset en la base vectorial
 │   └── train_classifier.py      # Entrena/evalúa el clasificador (alternativa local a 2-train.ipynb)
 ├── data/
+│   ├── classes.json             # Lista de las 70 razas
+│   ├── splits.csv               # Splits train/valid/test generados por 1-pre-processing.ipynb
+│   ├── independent_sources.csv  # Fuente, autor y licencia de cada imagen del conjunto independiente
 │   ├── dataset/                 # 70 Dog Breeds Image Dataset, no se versiona
-│   │   └── clean/               # Dataset filtrado y re-particionado (1-pre-processing.ipynb); es el DATASET_PATH
+│   │   ├── clean/               # Dataset filtrado y re-particionado (1-pre-processing.ipynb); es el DATASET_PATH
+│   │   ├── independent/         # Conjunto independiente: fotos de un perro por raza (zip de Drive)
+│   │   └── independent_scenes/  # Escenas con varios perros y sin perros (Etapa 3)
 │   └── embeddings.json          # Base vectorial JSON (si USE_PGVECTOR=false)
 ├── models/                      # Checkpoints entrenados (.pth / .onnx), no se versionan
 ├── output/                      # Imágenes subidas y resultados, no se versiona
