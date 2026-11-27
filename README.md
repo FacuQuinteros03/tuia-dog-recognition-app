@@ -472,3 +472,37 @@ docker compose up
 **Fecha de entrega:** a definir por la cátedra. Solo se consideran los commits hasta esa fecha y hora; se recomienda trabajar de forma incremental.
 
 El detalle del contenido del PR, la plantilla de descripción y el checklist están en [ENUNCIADO.md](ENUNCIADO.md#8-entrega-pull-request).
+
+# Validación end-to-end
+
+La aplicación fue validada por Roberto Lasarte el 26/11/2026, desde una computadora independiente a la utilizada durante el desarrollo. Se clonó el repositorio en una PC con Windows 11 y se utilizaron los archivos necesarios proporcionados por otro integrante del grupo para levantar la aplicación mediante Docker.
+
+**Preparación:**
+
+Se descargaron y ubicaron en sus respectivas carpetas los archivos necesarios para ejecutar el proyecto:
+- Dataset procesado (`dataset_clean.zip`), extraído en la carpeta correspondiente.
+- Checkpoint del modelo ResNet18 (`resnet18_finetuned.pth`).
+- Checkpoint de la CNN propia (`cnn_custom.pth`).
+- Conjunto de datos independiente (`conjunto_independiente.zip`).
+
+No fue necesario volver a ejecutar las notebooks de preprocesamiento ni de entrenamiento, ya que se utilizaron los datos procesados y los modelos previamente generados.
+
+### Resultados de las pruebas
+
+| Pestaña | Imagen de prueba | Resultado esperado | Resultado obtenido |
+|---|---|---|---|
+| Etapa 1 - Búsqueda por similitud | Foto de un Golden Retriever, modelo `baseline`, Top K = 10 | Predicción de la raza y recuperación de imágenes similares. | Predijo correctamente Golden Retriever con un score de 0.5035. Entre las imágenes más similares aparecieron ejemplares de la misma raza y otras visualmente parecidas, como Cocker y Cockapoo, con scores de similitud cercanos a 0.87. |
+| Etapa 1 - Búsqueda por similitud | Imagen de un paisaje sin perros | Resultado `unknown` o score bajo, sin una clasificación válida. | Devolvió `unknown`, con un score de 0.639. Las imágenes recuperadas correspondían a distintas razas y presentaban similitudes visuales con los colores del paisaje. |
+| Etapa 2 - Clasificación supervisada | La misma foto del Golden Retriever, modelo `resnet18_finetuned` | Clasificación correcta de la raza. | Predijo correctamente Golden Retriever, con un score de 0.7834. |
+| Etapa 2 - Clasificación supervisada | La misma foto del Golden Retriever, modelo `cnn_custom` | Clasificación correcta de la raza. | Predijo correctamente Golden Retriever, con un score de 0.4298. |
+| Etapa 3 - Detección y clasificación | Imagen con un solo Beagle | Detección del perro mediante una bounding box y clasificación de su raza. | Detectó correctamente al Beagle. `det_score`: 0.9597; `breed_score`: 0.7516. |
+| Etapa 3 - Detección y clasificación | Imagen con dos perros: un Beagle y un Husky | Detección y clasificación individual de ambos perros. | Detectó y clasificó correctamente a ambos perros. Husky: `det_score` 0.9347 y `breed_score` 0.7515. Beagle: `det_score` 0.9296 y `breed_score` 0.9156. |
+| Etapa 3 - Detección y clasificación | Familia caminando en un parque junto a un perro | Detectar únicamente al perro, sin generar detecciones sobre las personas. | Detectó correctamente al Golden Retriever, sin detectar a las personas. `det_score`: 0.8778; `breed_score`: 0.5445. |
+| Etapa 3 - Detección y clasificación | Personas caminando por una ciudad, sin animales | No generar detecciones. | No se generaron detecciones. La lista de resultados quedó vacía. |
+| Etapa 3 - Detección y clasificación | Imagen con un zorro y un gato | No generar detecciones de perros. | No se detectaron perros. La lista de resultados quedó vacía. |
+
+### Problemas encontrados y soluciones
+
+Durante la primera ejecución de Docker se produjeron errores relacionados con la falta de espacio de almacenamiento disponible en la computadora utilizada para la validación. El problema no estaba relacionado con el proyecto ni con su configuración.
+
+Se liberó espacio en el equipo y posteriormente se pudo levantar la aplicación correctamente mediante Docker. Una vez iniciados los servicios, se accedió a la interfaz web y se completaron las pruebas de las tres etapas sin inconvenientes adicionales.
